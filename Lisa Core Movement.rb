@@ -667,8 +667,8 @@ module LCM
   #     "$Alex in rags drop", 60, "Rustle", 70, 105,
   #     # Side falling/jumping data: Side fall graphic, Side jump graphic, Side jump distance
   #     "$Alex in rags jumps", "$Alex in rags jumps", 0,
-  #     # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance
-  #     true, false, false, "$Alex in rags", "$Alex in rags jumps", 0,
+  #     # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance, Side dash momentum max horizontal distance
+  #     true, false, false, "$Alex in rags", "$Alex in rags jumps", 0, 1,
   #     # Ropes data: [rope dataset name => [rope climbing graphic, climbing speed], ""=>[...], ...}
   #     {"rope" => ["$Alex in Rags climbing", 3], "vines" => ["$Alex in rags vines climbing", 3]}
   #   ],
@@ -679,8 +679,8 @@ module LCM
   #     "$Joel Miller sits", 60, "Rustle", 70, 105,
   #     # Side falling/jumping data: Side fall graphic, Side jump graphic, Side jump distance
   #     "$Joel Miller5", "$Joel Miller5", 0,
-  #     # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance
-  #     true, false, false, "$Joel Miller1", "$Joel Miller5", 0,
+  #     # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance, Side dash momentum max horizontal distance
+  #     true, false, false, "$Joel Miller1", "$Joel Miller5", 0, 1,
   #     # Ropes data: [rope dataset name => [rope climbing graphic, climbing speed], ""=>[...], ...}
   #     {"rope"=> ["$Joel climbing", 3], "vines" => ["$Joel vines climbing", 3]}
   #   ]
@@ -693,8 +693,8 @@ module LCM
       "$Alex in rags drop", 60, "Rustle", 70, 105,
       # Side falling/jumping data: Side fall graphic, Side jump graphic, Side jump distance
       "$Alex in rags jumps", "$Alex in rags jumps", 1,
-      # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance
-      false, true, false, "$Alex in rags head down", "$Alex in rags jumps", 2,
+      # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance, Side dash momentum max horizontal distance
+      true, true, true, "$Alex in rags head down", "$Alex in rags jumps", 2, 4,
       # Ropes data: [rope dataset name => [rope climbing graphic, climbing speed], ""=>[...], ...}
       {"rope" => ["$Alex in Rags climbing", 3], "vines" => ["$Alex in rags vines climbing", 3]}
     ],
@@ -705,8 +705,8 @@ module LCM
       "$Joel Miller sits", 60, "Rustle", 70, 105,
       # Side falling/jumping data: Side fall graphic, Side jump graphic, Side jump distance
       "$Joel Miller5", "$Joel Miller5", 1,
-      # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance
-      false, true, false, "$Joel Miller1", "$Joel Miller5", 2,
+      # Dash jumping data: Dashing disabled?, Enable dash momentum?, Treat walking like dashing? (for vehicles), Normal non-jump dash graphic, Side dash jump graphic, Side dash jump distance, Side dash momentum max horizontal distance
+      false, true, false, "$Joel Miller1", "$Joel Miller5", 2, 6,
       # Ropes data: [rope dataset name => [rope climbing graphic, climbing speed], ""=>[...], ...}
       {"rope"=> ["$Joel climbing", 3], "vines" => ["$Joel vines climbing", 3]}
     ]
@@ -884,6 +884,11 @@ module LCM
   #   Dash Jump Distance
   # The size of gaps between platforms that the player can jump across when dashing.
   
+  #   Side dash momentum max horizontal distance
+  # The maximum amount of tiles a horizontal dash with momentum enabled
+  # can throw you. This can be used to imitate behavior like Painful's
+  # bike which always propels you only 1 tile.
+
   #   Rope Dataset Name
   # The name of a set of data associated with a "type" of rope. This
   # could be for a normal rope, a ladder, some vines, etc.
@@ -952,8 +957,9 @@ module LCM
     :normalDashingGraphic => 19,
     :dashJumpGraphic => 20,
     :dashJumpDistance => 21,
+    :dashMomentumMaxHorizontalDistance => 22,
     
-    :ropesDataList => 22
+    :ropesDataList => 23
   }
   
   #--------------------------------------------------------------------------
@@ -2680,6 +2686,14 @@ class Game_CharacterBase
     lcmDashJumpTilesDownAdditions = 0
     # check the tiles arcing downward until a platform to land on is found,
     # or until the end of the map position is reached
+
+    # horizontal limiting
+    outfitMaxHorizontal = LCM.getlcmDatasetData(@lcmMovementOutfit, :dashMomentumMaxHorizontalDistance)
+    doHorizontalLimit = (outfitMaxHorizontal > 0) ? true : false
+    if (doHorizontalLimit == true)
+      horizontalLimiter = 0
+    end
+
     while ((yPos < offMapEndPos) && (!platformFound))
       terrainTag = $game_map.terrainTagPlatformCheck(xPos, yPos) # get map tile terrain tag
       eventTerrainTag = -1 # set eventTerrainTag to -1 by default unless platform events have been enabled
@@ -2704,8 +2718,17 @@ class Game_CharacterBase
       
       # if the platform is not found, increment tile position upwards
       if (!platformFound)
-        # increment the tile number by one
-        tileNum += 1
+        if (doHorizontalLimit == true)
+          if horizontalLimiter < outfitMaxHorizontal
+            # increment the tile number by one
+            tileNum += 1
+            # and increment the limiter by one
+            horizontalLimiter += 1
+          end
+        else
+          # increment the tile number by one
+          tileNum += 1
+        end
         # if tileNum has gone up by a LCM_DASH_JUMP_TILES_DOWN amount,
         # then increase/decrease xPos by LCM_DASH_JUMP_ACROSS_TILES
         if ((tileNum % (LCM::LCM_DASH_JUMP_TILES_DOWN + lcmDashJumpTilesDownAdditions)) == 0)
